@@ -16,5 +16,5 @@ Thanks for your interest in contributing 🎉!
 
 ## 🎯 Hacktoberfest Notes
 - Issues labeled `hacktoberfest`, `good first issue`, and `help wanted` are open for contributions.
-- Make 4 quality PRs in October to qualify.
+- Make 6 quality PRs in October to qualify.
 
