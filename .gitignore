@@ -1,0 +1,17 @@
+# Python ignores
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv
+.env.local
+
+# IDE ignores
+.vscode/
+.idea/
+*.swp
+
+# Build ignores
+dist/
+build/
+*.egg-info/
