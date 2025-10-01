@@ -54,7 +54,6 @@ class JDExtractorAgent:
             
         Raises:
             ValueError: If URL is invalid
-            requests.RequestException: If request fails
         """
         if not self._is_valid_url(url):
             raise ValueError(f"Invalid URL: {url}")
@@ -63,7 +62,7 @@ class JDExtractorAgent:
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
             return response.text
-        except requests.RequestException as e:
+        except Exception as e:
             print(f"Error fetching URL {url}: {e}")
             return None
     
