@@ -6,5 +6,6 @@ resumes based on job descriptions.
 """
 
 from .jd_extractor_agent import JDExtractorAgent
+from .resume_planner_agent import ResumePlannerAgent
 
-__all__ = ['JDExtractorAgent']
+__all__ = ['JDExtractorAgent', 'ResumePlannerAgent']
