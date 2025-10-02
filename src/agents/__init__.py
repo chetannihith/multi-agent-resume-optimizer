@@ -10,5 +10,6 @@ from .resume_planner_agent import ResumePlannerAgent
 from .profile_rag_agent import ProfileRAGAgent
 from .content_alignment_agent import ContentAlignmentAgent
 from .ats_optimizer_agent import ATSOptimizerAgent
+from .latex_formatter_agent import LaTeXFormatterAgent
 
-__all__ = ['JDExtractorAgent', 'ResumePlannerAgent', 'ProfileRAGAgent', 'ContentAlignmentAgent', 'ATSOptimizerAgent']
+__all__ = ['JDExtractorAgent', 'ResumePlannerAgent', 'ProfileRAGAgent', 'ContentAlignmentAgent', 'ATSOptimizerAgent', 'LaTeXFormatterAgent']

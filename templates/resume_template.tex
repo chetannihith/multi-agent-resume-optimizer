@@ -1,0 +1,110 @@
+\documentclass[11pt,a4paper,sans]{moderncv}
+
+% ModernCV theme and style
+\moderncvstyle{classic}
+\moderncvcolor{blue}
+
+% Character encoding
+\usepackage[utf8]{inputenc}
+
+% Adjust page margins
+\usepackage[scale=0.75]{geometry}
+
+% Personal information placeholders
+\name{{{FIRST_NAME}}}{{{LAST_NAME}}}
+\title{{{JOB_TITLE}}}
+\address{{{ADDRESS_LINE1}}}{{{ADDRESS_LINE2}}}{{{CITY_STATE_ZIP}}}
+\phone[mobile]{{{PHONE_NUMBER}}}
+\email{{{EMAIL_ADDRESS}}}
+\homepage{{{WEBSITE}}}
+\social[linkedin]{{{LINKEDIN_USERNAME}}}
+\social[github]{{{GITHUB_USERNAME}}}
+
+% Optional photo (comment out if not needed)
+% \photo[64pt][0.4pt]{picture}
+
+% Quote/objective (optional)
+\quote{{{OBJECTIVE_QUOTE}}}
+
+\begin{document}
+
+% Make the title
+\makecvtitle
+
+% Professional Summary Section
+\section{Professional Summary}
+\cvitem{}{{{PROFESSIONAL_SUMMARY}}}
+
+% Skills Section
+\section{Technical Skills}
+{{#SKILLS_CATEGORIES}}
+\cvitem{{{CATEGORY_NAME}}}{{{SKILLS_LIST}}}
+{{/SKILLS_CATEGORIES}}
+
+% Experience Section
+\section{Professional Experience}
+{{#EXPERIENCE_ENTRIES}}
+\cventry{{{START_DATE}}--{{END_DATE}}}{{{JOB_TITLE}}}{{{COMPANY_NAME}}}{{{LOCATION}}}{}{%
+{{#JOB_DESCRIPTIONS}}
+\begin{itemize}
+{{#DESCRIPTION_ITEMS}}
+\item {{DESCRIPTION_ITEM}}
+{{/DESCRIPTION_ITEMS}}
+\end{itemize}
+{{/JOB_DESCRIPTIONS}}
+}
+{{/EXPERIENCE_ENTRIES}}
+
+% Projects Section (if applicable)
+{{#HAS_PROJECTS}}
+\section{Key Projects}
+{{#PROJECT_ENTRIES}}
+\cventry{{{PROJECT_DATE}}}{{{PROJECT_NAME}}}{{{PROJECT_ORGANIZATION}}}{}{}{%
+{{PROJECT_DESCRIPTION}}
+{{#PROJECT_TECHNOLOGIES}}
+\newline\textbf{Technologies:} {{TECHNOLOGIES_LIST}}
+{{/PROJECT_TECHNOLOGIES}}
+{{#PROJECT_IMPACT}}
+\newline\textbf{Impact:} {{IMPACT_DESCRIPTION}}
+{{/PROJECT_IMPACT}}
+}
+{{/PROJECT_ENTRIES}}
+{{/HAS_PROJECTS}}
+
+% Education Section
+\section{Education}
+{{#EDUCATION_ENTRIES}}
+\cventry{{{GRADUATION_YEAR}}}{{{DEGREE_TYPE}}}{{{INSTITUTION_NAME}}}{{{LOCATION}}}{{{GPA_INFO}}}{{{ADDITIONAL_INFO}}}
+{{/EDUCATION_ENTRIES}}
+
+% Certifications Section (if applicable)
+{{#HAS_CERTIFICATIONS}}
+\section{Certifications}
+{{#CERTIFICATION_ENTRIES}}
+\cvitem{{{CERT_YEAR}}}{{{CERTIFICATION_NAME}} - {{ISSUING_ORGANIZATION}}}
+{{/CERTIFICATION_ENTRIES}}
+{{/HAS_CERTIFICATIONS}}
+
+% Awards and Achievements Section (if applicable)
+{{#HAS_AWARDS}}
+\section{Awards and Achievements}
+{{#AWARD_ENTRIES}}
+\cvitem{{{AWARD_YEAR}}}{{{AWARD_NAME}} - {{AWARD_DESCRIPTION}}}
+{{/AWARD_ENTRIES}}
+{{/HAS_AWARDS}}
+
+% Languages Section (if applicable)
+{{#HAS_LANGUAGES}}
+\section{Languages}
+{{#LANGUAGE_ENTRIES}}
+\cvitem{{{LANGUAGE_NAME}}}{{{PROFICIENCY_LEVEL}}}
+{{/LANGUAGE_ENTRIES}}
+{{/HAS_LANGUAGES}}
+
+% Additional Information Section (if applicable)
+{{#HAS_ADDITIONAL_INFO}}
+\section{Additional Information}
+\cvitem{}{{{ADDITIONAL_INFORMATION}}}
+{{/HAS_ADDITIONAL_INFO}}
+
+\end{document}

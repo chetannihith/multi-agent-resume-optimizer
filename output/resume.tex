@@ -1,0 +1,87 @@
+\documentclass[11pt,a4paper,sans]{moderncv}
+
+% ModernCV theme and style
+\moderncvstyle{classic}
+\moderncvcolor{blue}
+
+% Character encoding
+\usepackage[utf8]{inputenc}
+
+% Adjust page margins
+\usepackage[scale=0.75]{geometry}
+
+% Personal information placeholders
+\name{John}{Doe}
+\title{Senior Python Developer}
+\address{123 Main Street}{Apt 4B}{City, State 12345}
+\phone[mobile]{+1 (555) 123-4567}
+\email{your.email@example.com}
+\homepage{www.yourwebsite.com}
+\social[linkedin]{yourlinkedin}
+\social[github]{yourgithub}
+
+% Optional photo (comment out if not needed)
+% \photo[64pt][0.4pt]{picture}
+
+% Quote/objective (optional)
+\quote{Dedicated professional seeking to contribute expertise and drive innovation.}
+
+\begin{document}
+
+% Make the title
+\makecvtitle
+
+% Professional Summary Section
+\section{Professional Summary}
+\cvitem{}Experienced Python developer with 5+ years of expertise in web development, API design, and cloud deployment. Proven track record of building scalable applications using Django, Flask, and modern DevOps practices. Strong background in database design, system architecture, and team leadership.
+
+% Skills Section
+\section{Technical Skills}
+\cvitem{Technical}{Python, Django, Flask, PostgreSQL, JavaScript, React}
+\cvitem{Tools}{Git, Docker, Kubernetes, AWS, Linux}
+
+% Experience Section
+\section{Professional Experience}
+\cventry{2021--2024}{Senior Python Developer}{TechCorp Inc.}{San Francisco, CA}{}{%
+\begin{itemize}
+\item Led development of scalable microservices architecture using Python and Django framework. Designed and implemented high
+\item performance REST APIs serving over 1 million requests daily. Successfully deployed and managed applications on AWS cloud infrastructure using Docker containers and Kubernetes orchestration. Provided technical mentorship to junior developers and established code review best practices.
+\end{itemize}
+}
+\cventry{2019--2021}{Python Developer}{WebSolutions Ltd.}{Austin, TX}{}{%
+\begin{itemize}
+\item Developed robust web applications using Flask framework with focus on performance and scalability. Successfully integrated multiple third
+\item party APIs and payment processing systems. Optimized PostgreSQL database queries and implemented caching strategies, resulting in 40\% improvement in application performance.
+\end{itemize}
+}
+
+% Projects Section (if applicable)
+\section{Key Projects}
+\cventry{2023}{E-commerce API Platform}{}{}{}{%
+Developed comprehensive REST API for e-commerce platform handling product catalog, user management, and order processing
+\newline\textbf{Technologies:} Python, Django, PostgreSQL, Redis, AWS, Docker
+\newline\textbf{Impact:} Reduced API response time by 60\% and supported 10x user growth
+}
+\cventry{2022}{Real-time Analytics Dashboard}{}{}{}{%
+Built real-time data processing pipeline and visualization dashboard for business metrics
+\newline\textbf{Technologies:} Python, Flask, React, WebSocket, PostgreSQL
+\newline\textbf{Impact:} Enabled real-time decision making for business stakeholders
+}
+
+% Education Section
+\section{Education}
+\cventry{2019}{Bachelor of Science in Computer Science}{Tech University}{Boston, MA}{GPA: 3.7}{}
+
+% Certifications Section (if applicable)
+
+
+% Awards and Achievements Section (if applicable)
+
+
+% Languages Section (if applicable)
+
+
+% Additional Information Section (if applicable)
+
+
+\end{document}
