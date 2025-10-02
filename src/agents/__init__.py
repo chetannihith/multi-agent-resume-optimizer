@@ -8,5 +8,6 @@ resumes based on job descriptions.
 from .jd_extractor_agent import JDExtractorAgent
 from .resume_planner_agent import ResumePlannerAgent
 from .profile_rag_agent import ProfileRAGAgent
+from .content_alignment_agent import ContentAlignmentAgent
 
-__all__ = ['JDExtractorAgent', 'ResumePlannerAgent', 'ProfileRAGAgent']
+__all__ = ['JDExtractorAgent', 'ResumePlannerAgent', 'ProfileRAGAgent', 'ContentAlignmentAgent']
