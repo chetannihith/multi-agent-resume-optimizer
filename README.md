@@ -11,6 +11,7 @@ Built with CrewAI/LangGraph, RAG for personalization, and LaTeX resume generatio
 - LaTeX Resume Generation
 - Multi-Agent Orchestration (6 agents)
 - Iterative Refinement with Feedback
+- **Multi-Format Support**: JSON, PDF, and DOCX resume parsing
 
 ### 📂 Repo Structure
 - `docs/` → Architecture & workflow docs
@@ -25,6 +26,13 @@ cd multi-agent-resume-optimizer
 pip install -r requirements.txt
 python src/main.py
 ```
+
+### 📄 Supported File Formats
+- **JSON**: Structured resume data
+- **PDF**: Resume documents (text-based)
+- **DOCX**: Microsoft Word documents
+
+See [File Parser Guide](docs/file_parser_guide.md) for detailed usage instructions.
 
 ### 🤝 Contributing
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).  

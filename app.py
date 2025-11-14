@@ -22,6 +22,7 @@ from config import config, setup_environment
 import sys
 sys.path.append('src')
 from workflow.resume_workflow import ResumeWorkflow
+from tools.file_parser import ResumeParser
 
 # Setup environment
 setup_environment()
@@ -161,7 +162,7 @@ class ResumeOptimizerApp:
             st.subheader("📚 Help & Tips")
             with st.expander("How to use"):
                 st.markdown("""
-                1. **Upload Resume**: Upload your resume as JSON file
+                1. **Upload Resume**: Upload your resume as JSON, PDF, or DOCX file
                 2. **Job Description**: Paste the job posting URL
                 3. **Optimize**: Click 'Optimize Resume' to start
                 4. **Review**: Check ATS score and preview
@@ -191,34 +192,41 @@ class ResumeOptimizerApp:
         
         with col1:
             uploaded_file = st.file_uploader(
-                "Upload your resume (JSON format)",
-                type=['json', 'txt'],
-                help="Upload a structured resume in JSON format"
+                "Upload your resume (JSON, PDF, or DOCX format)",
+                type=['json', 'txt', 'pdf', 'docx'],
+                help="Upload a resume in JSON, PDF, or DOCX format"
             )
             
             if uploaded_file is not None:
                 try:
-                    # Read and parse the file
+                    # Read and parse the file using the unified parser
                     file_content = uploaded_file.read()
-                    if uploaded_file.type == "application/json":
-                        resume_data = json.loads(file_content)
-                    else:
-                        # Try to parse as JSON even if uploaded as txt
-                        resume_data = json.loads(file_content.decode('utf-8'))
+                    file_name = uploaded_file.name
+                    
+                    # Initialize parser
+                    parser = ResumeParser()
+                    
+                    # Parse the file based on its type
+                    resume_data = parser.parse_file(file_name, file_content)
+                    
+                    # Validate the parsed data
+                    if not parser.validate_resume_data(resume_data):
+                        st.warning("⚠️ Parsed resume data may be incomplete. Please review the preview.")
                     
                     st.session_state.uploaded_resume = resume_data
                     
-                    # Display success message
-                    st.markdown('<div class="success-message">✅ Resume uploaded successfully!</div>', unsafe_allow_html=True)
+                    # Display success message with file type
+                    file_type = file_name.split('.')[-1].upper()
+                    st.markdown(f'<div class="success-message">✅ {file_type} resume uploaded and parsed successfully!</div>', unsafe_allow_html=True)
                     
                     # Show resume preview
                     with st.expander("📋 Resume Preview"):
                         st.json(resume_data)
                     
-                except json.JSONDecodeError as e:
-                    st.error(f"❌ Invalid JSON format: {e}")
                 except Exception as e:
-                    st.error(f"❌ Error reading file: {e}")
+                    st.error(f"❌ Error parsing file: {e}")
+                    st.info("💡 **Supported formats:** JSON, PDF, DOCX")
+                    st.info("💡 **Tips:** Ensure your PDF/DOCX resume has clear section headers like 'Experience', 'Education', 'Skills'")
         
         with col2:
             if st.session_state.uploaded_resume:
@@ -341,7 +349,7 @@ class ResumeOptimizerApp:
             
             requirements = []
             if not st.session_state.uploaded_resume:
-                requirements.append("❌ Upload resume JSON file")
+                requirements.append("❌ Upload resume file (JSON/PDF/DOCX)")
             else:
                 requirements.append("✅ Resume uploaded")
             
@@ -372,9 +380,7 @@ class ResumeOptimizerApp:
                 self.workflow = ResumeWorkflow(
                     template_path=config.DEFAULT_TEMPLATE_PATH,
                     output_directory=config.DEFAULT_OUTPUT_DIR,
-                    rag_database_path=config.DEFAULT_RAG_DB_PATH,
-                    enable_logging=config.ENABLE_DETAILED_LOGGING,
-                    log_level=config.LOG_LEVEL
+                    rag_database_path=config.DEFAULT_RAG_DB_PATH
                 )
             
             # Prepare profile data
@@ -417,18 +423,21 @@ class ResumeOptimizerApp:
             st.session_state.workflow_result = result
             
             # Show completion message
-            if result['success']:
+            if result.success:
                 st.success("🎉 Resume optimization completed successfully!")
             else:
                 st.error("❌ Optimization failed. Check errors below.")
         
         except Exception as e:
             st.error(f"❌ Error during optimization: {str(e)}")
-            st.session_state.workflow_result = {
-                'success': False,
-                'errors': [str(e)],
-                'latex_file_path': None
-            }
+            # Create a mock dict for error display
+            class ErrorResult:
+                success = False
+                errors = [str(e)]
+                latex_file_path = None
+                intermediate_results = {}
+                execution_time = {}
+            st.session_state.workflow_result = ErrorResult()
         
         finally:
             st.session_state.processing = False
@@ -483,7 +492,7 @@ class ResumeOptimizerApp:
         
         st.header("📊 Results & Analysis")
         
-        if result['success']:
+        if result.success:
             self.render_success_results(result)
         else:
             self.render_error_results(result)
@@ -496,9 +505,9 @@ class ResumeOptimizerApp:
         with col1:
             # Get ATS score from results
             ats_score = 0
-            if 'intermediate_results' in result and result['intermediate_results']:
-                optimized_data = result['intermediate_results'].get('optimized_data', {})
-                ats_analysis = optimized_data.get('ats_analysis', {})
+            if result.intermediate_results:
+                optimized_data = result.intermediate_results.get('optimized_data', {})
+                ats_analysis = optimized_data.get('ats_analysis', {}) if isinstance(optimized_data, dict) else {}
                 ats_score = ats_analysis.get('ats_score', 0)
             
             # Create ATS score gauge
@@ -530,12 +539,12 @@ class ResumeOptimizerApp:
             st.markdown('<div class="metric-card">📈 Performance Metrics</div>', unsafe_allow_html=True)
             
             # Execution time
-            total_time = result.get('execution_time', {}).get('total', 0)
+            total_time = sum(result.execution_time.values()) if result.execution_time else 0
             st.metric("Execution Time", f"{total_time:.1f}s")
             
             # File size
-            if result.get('latex_file_path') and os.path.exists(result['latex_file_path']):
-                file_size = os.path.getsize(result['latex_file_path'])
+            if result.latex_file_path and os.path.exists(result.latex_file_path):
+                file_size = os.path.getsize(result.latex_file_path)
                 st.metric("File Size", f"{file_size:,} bytes")
         
         with col3:
@@ -555,8 +564,8 @@ class ResumeOptimizerApp:
         # Detailed Analysis
         st.subheader("🔍 Detailed Analysis")
         
-        if 'intermediate_results' in result:
-            intermediate = result['intermediate_results']
+        if result.intermediate_results:
+            intermediate = result.intermediate_results
             
             # Create tabs for different analyses
             tab1, tab2, tab3, tab4 = st.tabs(["📋 Job Analysis", "👤 Profile Match", "🎯 Content Alignment", "⚡ ATS Optimization"])
@@ -708,34 +717,35 @@ class ResumeOptimizerApp:
                 for fix in auto_fixes[:5]:
                     st.write(f"🔧 {fix}")
     
-    def render_error_results(self, result: Dict[str, Any]):
+    def render_error_results(self, result):
         """Render error results."""
         st.markdown('<div class="error-message">❌ Optimization Failed</div>', unsafe_allow_html=True)
         
-        errors = result.get('errors', [])
+        errors = result.errors if hasattr(result, 'errors') else []
         for error in errors:
             st.error(f"• {error}")
         
-        warnings = result.get('warnings', [])
+        warnings = result.warnings if hasattr(result, 'warnings') else []
         if warnings:
             st.subheader("⚠️ Warnings")
             for warning in warnings:
                 st.warning(f"• {warning}")
         
         # Execution time even for failed runs
-        execution_time = result.get('execution_time', {})
+        execution_time = result.execution_time if hasattr(result, 'execution_time') else {}
         if execution_time:
-            st.info(f"⏱️ Execution time: {execution_time.get('total', 0):.2f} seconds")
+            total_time = sum(execution_time.values()) if isinstance(execution_time, dict) else 0
+            st.info(f"⏱️ Execution time: {total_time:.2f} seconds")
     
     def render_download_section(self):
         """Render the download section."""
-        if not st.session_state.workflow_result or not st.session_state.workflow_result['success']:
+        if not st.session_state.workflow_result or not st.session_state.workflow_result.success:
             return
         
         st.header("📥 Download Results")
         
         result = st.session_state.workflow_result
-        latex_file_path = result.get('latex_file_path')
+        latex_file_path = result.latex_file_path
         
         if not latex_file_path or not os.path.exists(latex_file_path):
             st.error("❌ LaTeX file not found")
@@ -889,7 +899,7 @@ class ResumeOptimizerApp:
         
         self.render_results_section()
         
-        if st.session_state.workflow_result and st.session_state.workflow_result['success']:
+        if st.session_state.workflow_result and st.session_state.workflow_result.success:
             st.markdown("---")
             self.render_download_section()
         
