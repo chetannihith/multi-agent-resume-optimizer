@@ -441,6 +441,9 @@ class ContentAlignmentAgent:
             Dictionary containing aligned content sections
         """
         try:
+            # Log incoming profile data for debugging
+            self.logger.info(f"Aligning content. Profile has: name={bool(profile_data.get('name'))}, email={bool(profile_data.get('email'))}, skills_count={len(profile_data.get('skills', []))}, experience_count={len(profile_data.get('experience', []))}")
+            
             # Extract job keywords
             job_keywords = self.extract_job_keywords(job_data)
             
@@ -468,10 +471,32 @@ class ContentAlignmentAgent:
             
             overall_alignment = (skills_score * self.skills_weight + avg_exp_score * self.experience_weight) / (self.skills_weight + self.experience_weight)
             
-            # Prepare aligned content
+            # Prepare aligned content - PRESERVE ALL PROFILE DATA
             aligned_content = {
+                # Core profile fields (CRITICAL - must be preserved)
+                'name': profile_data.get('name', ''),
+                'email': profile_data.get('email', ''),
+                'phone': profile_data.get('phone', ''),
+                'address': profile_data.get('address', []),
+                'linkedin': profile_data.get('linkedin', ''),
+                'github': profile_data.get('github', ''),
+                'website': profile_data.get('website', ''),
+                
+                # Profile metadata
                 'profile_id': profile_data.get('profile_id', 'unknown'),
                 'job_title': job_data.get('job_title', 'Unknown Position'),
+                
+                # Use aligned/enhanced content where available, fallback to original
+                'summary': aligned_summary,
+                'skills': aligned_skills.get('aligned_skills', []) or applicant_skills or profile_data.get('skills', []),
+                'experience': profile_data.get('experience', []),  # Keep full experience list
+                'education': profile_data.get('education', []),
+                'projects': profile_data.get('projects', []),
+                'certifications': profile_data.get('certifications', []),
+                'awards': profile_data.get('awards', []),
+                'languages': profile_data.get('languages', []),
+                
+                # Alignment analysis data
                 'alignment_metadata': {
                     'overall_alignment_score': overall_alignment,
                     'skills_alignment_score': skills_score,
@@ -497,7 +522,18 @@ class ContentAlignmentAgent:
             
         except Exception as e:
             self.logger.error(f"Error aligning content: {e}")
+            # Even on error, preserve profile data
             return {
+                # Preserve profile fields even on error
+                'name': profile_data.get('name', '') if profile_data else '',
+                'email': profile_data.get('email', '') if profile_data else '',
+                'phone': profile_data.get('phone', '') if profile_data else '',
+                'skills': profile_data.get('skills', []) if profile_data else [],
+                'experience': profile_data.get('experience', []) if profile_data else [],
+                'education': profile_data.get('education', []) if profile_data else [],
+                'projects': profile_data.get('projects', []) if profile_data else [],
+                'summary': profile_data.get('summary', '') if profile_data else '',
+                
                 'profile_id': profile_data.get('profile_id', 'error') if profile_data else 'error',
                 'job_title': job_data.get('job_title', 'Unknown Position') if job_data else 'Unknown Position',
                 'error': str(e),

@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from fpdf import FPDF
 import base64
+import urllib.parse
 
 # Import configuration and workflow
 from config import config, setup_environment
@@ -238,6 +239,54 @@ class ResumeOptimizerApp:
                 
                 for key, value in stats.items():
                     st.metric(key, value)
+        
+        # Manual contact input section (fallback for parser misses)
+        if st.session_state.uploaded_resume:
+            st.subheader("✏️ Verify/Edit Contact Information")
+            st.markdown('<div class="info-box">📧 If the parser missed your contact details, please enter them below. These fields are required for the final resume.</div>', unsafe_allow_html=True)
+            
+            resume = st.session_state.uploaded_resume
+            personal_info = resume.get("personal_info", {})
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                manual_email = st.text_input(
+                    "Email Address *",
+                    value=resume.get("email") or personal_info.get("email", ""),
+                    placeholder="your.email@example.com",
+                    help="Required: Your professional email address"
+                )
+                manual_phone = st.text_input(
+                    "Phone Number *",
+                    value=resume.get("phone") or personal_info.get("phone", ""),
+                    placeholder="+1-555-123-4567",
+                    help="Required: Your contact phone number"
+                )
+            
+            with col2:
+                manual_linkedin = st.text_input(
+                    "LinkedIn URL (optional)",
+                    value=resume.get("linkedin") or personal_info.get("linkedin", ""),
+                    placeholder="https://linkedin.com/in/yourprofile",
+                    help="Optional: Your LinkedIn profile URL"
+                )
+                manual_github = st.text_input(
+                    "GitHub URL (optional)",
+                    value=resume.get("github") or personal_info.get("github", ""),
+                    placeholder="https://github.com/yourusername",
+                    help="Optional: Your GitHub profile URL"
+                )
+            
+            # Store manual inputs in session state
+            if 'manual_contact' not in st.session_state:
+                st.session_state.manual_contact = {}
+            
+            st.session_state.manual_contact = {
+                "email": manual_email,
+                "phone": manual_phone,
+                "linkedin": manual_linkedin,
+                "github": manual_github
+            }
     
     def analyze_resume_structure(self, resume_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze the structure of uploaded resume data."""
@@ -363,6 +412,15 @@ class ResumeOptimizerApp:
     
     def run_optimization(self):
         """Execute the resume optimization workflow."""
+        # Validate required fields before starting
+        validation_errors = self.validate_required_fields()
+        if validation_errors:
+            st.error("❌ Cannot generate resume: Missing required information")
+            for error in validation_errors:
+                st.error(f"• {error}")
+            st.markdown('<div class="info-box">💡 Please fill in the required contact fields above before optimizing.</div>', unsafe_allow_html=True)
+            return
+        
         st.session_state.processing = True
         st.session_state.workflow_logs = []
         
@@ -454,17 +512,65 @@ class ResumeOptimizerApp:
             # Create profile file
             profile_path = os.path.join(config.DEFAULT_RAG_DB_PATH, f"{profile_id}.json")
             
-            # Transform resume data to expected format
+            # Handle both nested (personal_info) and flat structures
+            personal_info = resume_data.get("personal_info", {})
+            
+            # Merge manual contact inputs if available (takes precedence)
+            manual_contact = st.session_state.get("manual_contact", {})
+            
+            # Extract personal info fields (priority: manual input > parsed data)
+            name = resume_data.get("name") or personal_info.get("name", "Applicant")
+            email = manual_contact.get("email") or resume_data.get("email") or personal_info.get("email", "")
+            phone = manual_contact.get("phone") or resume_data.get("phone") or personal_info.get("phone", "")
+            address = resume_data.get("address") or personal_info.get("address", [])
+            linkedin = manual_contact.get("linkedin") or resume_data.get("linkedin") or personal_info.get("linkedin", "")
+            github = manual_contact.get("github") or resume_data.get("github") or personal_info.get("github", "")
+            website = resume_data.get("website") or personal_info.get("website", "")
+            
+            # Extract skills - if empty, try to extract from project tech_stacks
+            skills = resume_data.get("skills", [])
+            if not skills:
+                # Fallback: extract unique skills from project tech_stacks
+                projects = resume_data.get("projects", [])
+                skill_set = set()
+                for project in projects:
+                    if isinstance(project, dict):
+                        tech_stack = project.get("tech_stack", []) or project.get("technologies", [])
+                        if isinstance(tech_stack, list):
+                            skill_set.update(tech_stack)
+                        elif isinstance(tech_stack, str):
+                            skill_set.update([t.strip() for t in tech_stack.split(',')])
+                skills = sorted(list(skill_set))
+            
+            # Generate summary if missing
+            summary = resume_data.get("summary", "")
+            if not summary:
+                # Generate basic summary from available data
+                education = resume_data.get("education", [])
+                degree = education[0].get("degree", "Graduate") if education else "Professional"
+                exp_count = len(resume_data.get("experience", []))
+                exp_text = f"{exp_count}+ years of experience" if exp_count > 0 else "seeking opportunities"
+                top_skills = ", ".join(skills[:5]) if skills else "multiple domains"
+                summary = f"{degree} with {exp_text} in {top_skills}."
+            
+            # Transform resume data to expected format (flat structure for workflow)
             profile_data = {
                 "profile_id": profile_id,
-                "name": resume_data.get("name", "Applicant"),
-                "email": resume_data.get("email", ""),
-                "phone": resume_data.get("phone", ""),
-                "skills": resume_data.get("skills", []),
+                "name": name,
+                "email": email,
+                "phone": phone,
+                "address": address if isinstance(address, list) else [address] if address else [],
+                "linkedin": linkedin,
+                "github": github,
+                "website": website,
+                "skills": skills,
                 "experience": resume_data.get("experience", []),
                 "education": resume_data.get("education", []),
                 "projects": resume_data.get("projects", []),
-                "summary": resume_data.get("summary", ""),
+                "summary": summary,
+                "certifications": resume_data.get("certifications", []),
+                "awards": resume_data.get("awards", []),
+                "languages": resume_data.get("languages", []),
                 "created_at": datetime.now().isoformat(),
                 "source": "streamlit_upload"
             }
@@ -476,12 +582,100 @@ class ResumeOptimizerApp:
             st.error(f"Error saving profile: {e}")
             raise
     
+    def validate_required_fields(self) -> list:
+        """Validate that required fields are present before generating resume.
+        
+        Returns:
+            List of validation error messages (empty if all valid)
+        """
+        errors = []
+        
+        if not st.session_state.uploaded_resume:
+            errors.append("Resume not uploaded")
+            return errors
+        
+        resume = st.session_state.uploaded_resume
+        personal_info = resume.get("personal_info", {})
+        manual_contact = st.session_state.get("manual_contact", {})
+        
+        # Check required fields
+        name = resume.get("name") or personal_info.get("name", "")
+        email = manual_contact.get("email") or resume.get("email") or personal_info.get("email", "")
+        phone = manual_contact.get("phone") or resume.get("phone") or personal_info.get("phone", "")
+        
+        if not name or name == "Applicant":
+            errors.append("Name is missing or invalid")
+        
+        if not email or not email.strip():
+            errors.append("Email address is required")
+        
+        if not phone or not phone.strip():
+            errors.append("Phone number is required")
+        
+        # Check skills (extracted or from projects)
+        skills = resume.get("skills", [])
+        projects = resume.get("projects", [])
+        has_skills = bool(skills) or any(
+            project.get("tech_stack") or project.get("technologies")
+            for project in projects if isinstance(project, dict)
+        )
+        
+        if not has_skills:
+            errors.append("No skills found (add a Skills section or include technologies in your projects)")
+        
+        return errors
+    
     def reset_workflow(self):
         """Reset the workflow state."""
         st.session_state.workflow_result = None
         st.session_state.workflow_logs = []
         st.session_state.processing = False
         st.rerun()
+    
+    def create_overleaf_url(self, latex_content: str) -> str:
+        """Create an Overleaf URL to open the LaTeX content.
+        
+        Note: Due to Overleaf's URL length limitations and security restrictions,
+        we use a simple fallback - users will download and upload manually.
+        
+        Args:
+            latex_content: LaTeX source code
+            
+        Returns:
+            Overleaf homepage URL
+        """
+        # Overleaf doesn't support data URIs or very long URLs
+        # The most reliable method is download + upload
+        return "https://www.overleaf.com/project"
+    
+    def show_overleaf_guide(self):
+        """Show a quick guide for using Overleaf."""
+        with st.expander("📘 How to use Overleaf with your resume", expanded=False):
+            st.markdown("""
+            ### Quick Steps (30 seconds):
+            
+            1. **Download** the LaTeX file using the button above
+            2. **Go to** [Overleaf.com](https://www.overleaf.com)
+            3. **Click** "New Project" → "Upload Project"
+            4. **Upload** your `.tex` file
+            5. **Click** "Recompile" → Your PDF is ready! ✅
+            
+            ### Why Overleaf?
+            
+            - ✅ **Free online LaTeX editor** (no installation needed)
+            - ✅ **Instant PDF compilation** (see results immediately)
+            - ✅ **Live preview** (edit and see changes in real-time)
+            - ✅ **Professional templates** (resume looks great)
+            - ✅ **Easy sharing** (send link to others)
+            
+            ### Pro Tips:
+            
+            - Use **Ctrl+S** to recompile
+            - Click on **PDF errors** to jump to the problem line
+            - Download PDF from the **Download PDF** button in Overleaf
+            - Keep the project for future edits!
+            """)
+    
     
     def render_results_section(self):
         """Render the results and analysis section."""
@@ -751,24 +945,36 @@ class ResumeOptimizerApp:
             st.error("❌ LaTeX file not found")
             return
         
-        col1, col2, col3 = st.columns(3)
+        # Read LaTeX content once
+        with open(latex_file_path, 'r', encoding='utf-8') as f:
+            latex_content = f.read()
+        
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             # LaTeX download
-            with open(latex_file_path, 'r', encoding='utf-8') as f:
-                latex_content = f.read()
-            
             st.download_button(
-                label="📄 Download LaTeX (.tex)",
+                label="📄 Download LaTeX",
                 data=latex_content,
                 file_name=f"optimized_resume_{int(time.time())}.tex",
                 mime="text/plain",
-                use_container_width=True
+                use_container_width=True,
+                help="Download the LaTeX source file"
             )
         
         with col2:
+            # Open in Overleaf button
+            overleaf_url = self.create_overleaf_url(latex_content)
+            st.link_button(
+                label="🌐 Open Overleaf",
+                url=overleaf_url,
+                use_container_width=True,
+                help="Go to Overleaf to compile your resume to PDF"
+            )
+        
+        with col3:
             # PDF generation and download
-            if st.button("📄 Generate & Download PDF", use_container_width=True):
+            if st.button("📄 Generate PDF", use_container_width=True, help="Generate PDF from LaTeX"):
                 pdf_content = self.generate_pdf_from_latex(latex_content)
                 if pdf_content:
                     st.download_button(
@@ -779,10 +985,16 @@ class ResumeOptimizerApp:
                         use_container_width=True
                     )
         
-        with col3:
+        with col4:
             # Preview button
-            if st.button("👁️ Preview Resume", use_container_width=True):
+            if st.button("👁️ Preview", use_container_width=True, help="Preview resume content"):
                 st.session_state.show_preview = True
+        
+        # Show Overleaf guide
+        self.show_overleaf_guide()
+        
+        # Info message with workflow tip
+        st.markdown('<div class="info-box">💡 <strong>Quick Workflow:</strong> Click "📄 Download LaTeX" → Go to Overleaf.com → New Project → Upload Project → Done! Your resume will compile to PDF in seconds.</div>', unsafe_allow_html=True)
         
         # Show preview if requested
         if getattr(st.session_state, 'show_preview', False):

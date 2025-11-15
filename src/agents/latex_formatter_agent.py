@@ -91,12 +91,21 @@ class LaTeXFormatterAgent:
         Format skills data into categorized format for LaTeX template.
         
         Args:
-            skills_data: Skills data from optimized resume
+            skills_data: Skills data from optimized resume (dict or list)
             
         Returns:
             List of skill categories with formatted skill lists
         """
         categories = []
+        
+        # Handle if skills_data is a list (direct skills list from root level)
+        if isinstance(skills_data, list):
+            if skills_data:
+                categories.append({
+                    'CATEGORY_NAME': 'Skills',
+                    'SKILLS_LIST': self.escape_latex_special_chars(', '.join(skills_data))
+                })
+                return categories
         
         if isinstance(skills_data, dict):
             # Check if we have categorized skills
@@ -114,33 +123,12 @@ class LaTeXFormatterAgent:
             # If no categories or categories are empty, use aligned_skills
             if not categories and 'aligned_skills' in skills_data:
                 aligned_skills = skills_data['aligned_skills']
-                if aligned_skills:
-                    # Group skills into technical and other
-                    technical_keywords = {
-                        'python', 'java', 'javascript', 'react', 'node', 'sql', 
-                        'aws', 'docker', 'kubernetes', 'git', 'linux', 'mongodb'
-                    }
-                    
-                    technical_skills = []
-                    other_skills = []
-                    
-                    for skill in aligned_skills[:15]:  # Limit total skills
-                        if any(tech in skill.lower() for tech in technical_keywords):
-                            technical_skills.append(skill)
-                        else:
-                            other_skills.append(skill)
-                    
-                    if technical_skills:
-                        categories.append({
-                            'CATEGORY_NAME': 'Technical Skills',
-                            'SKILLS_LIST': self.escape_latex_special_chars(', '.join(technical_skills))
-                        })
-                    
-                    if other_skills:
-                        categories.append({
-                            'CATEGORY_NAME': 'Additional Skills',
-                            'SKILLS_LIST': self.escape_latex_special_chars(', '.join(other_skills))
-                        })
+                if aligned_skills and isinstance(aligned_skills, list):
+                    # Simply show all skills in one category
+                    categories.append({
+                        'CATEGORY_NAME': 'Skills',
+                        'SKILLS_LIST': self.escape_latex_special_chars(', '.join(aligned_skills))
+                    })
         
         # Default category if no skills found
         if not categories:
@@ -167,8 +155,8 @@ class LaTeXFormatterAgent:
             if not isinstance(exp, dict):
                 continue
             
-            # Extract basic information
-            job_title = exp.get('title', 'Position')
+            # Extract basic information (handle both 'title'/'role' and 'company')
+            job_title = exp.get('title') or exp.get('role', 'Position')
             company = exp.get('company', 'Company')
             duration = exp.get('duration', 'Dates')
             location = exp.get('location', '')
@@ -176,9 +164,20 @@ class LaTeXFormatterAgent:
             # Parse duration into start and end dates
             start_date, end_date = self._parse_duration(duration)
             
-            # Format job description
-            description = exp.get('aligned_description') or exp.get('description', '')
-            description_items = self._format_job_description(description)
+            # Format job description (try aligned first, then highlights/achievements list, then description string)
+            aligned_desc = exp.get('aligned_description')
+            highlights = exp.get('highlights') or exp.get('achievements', [])
+            description = exp.get('description', '')
+            
+            if aligned_desc:
+                description_items = self._format_job_description(aligned_desc)
+            elif highlights and isinstance(highlights, list):
+                # Use highlights/achievements directly as bullet points
+                description_items = [{'DESCRIPTION_ITEM': self.escape_latex_special_chars(h)} for h in highlights]
+            elif description:
+                description_items = self._format_job_description(description)
+            else:
+                description_items = []
             
             formatted_entry = {
                 'START_DATE': self.escape_latex_special_chars(start_date),
@@ -299,15 +298,24 @@ class LaTeXFormatterAgent:
             degree = edu.get('degree', 'Degree')
             field = edu.get('field', '')
             institution = edu.get('institution', 'Institution')
-            year = edu.get('year', 'Year')
+            # Handle both 'year' and 'duration' fields
+            year = edu.get('year') or edu.get('duration', 'Year')
             location = edu.get('location', '')
-            gpa = edu.get('gpa', '')
+            # Handle both 'gpa' and 'cgpa' fields
+            gpa = edu.get('gpa') or edu.get('cgpa', '')
+            # Handle 'percentage' field
+            percentage = edu.get('percentage', '')
             
             # Format degree and field
             degree_field = f"{degree} in {field}" if field else degree
             
-            # Format GPA info
-            gpa_info = f"GPA: {gpa}" if gpa else ""
+            # Format GPA/CGPA/Percentage info
+            if gpa:
+                gpa_info = f"CGPA: {gpa}" if 'cgpa' in edu else f"GPA: {gpa}"
+            elif percentage:
+                gpa_info = f"Percentage: {percentage}"
+            else:
+                gpa_info = ""
             
             formatted_entry = {
                 'GRADUATION_YEAR': self.escape_latex_special_chars(str(year)),
@@ -353,10 +361,25 @@ class LaTeXFormatterAgent:
                 continue
             
             name = project.get('name', 'Project Name')
-            description = project.get('description', '')
+            # Handle description, details, or list of description points
+            description = project.get('description') or project.get('details', '')
+            if isinstance(description, list):
+                # Join list items into bullet points or sentences
+                description = ' '.join(description)
+            elif not description:
+                description = ''
+            
+            # Handle tech_stack (list) or technologies (string)
+            tech_stack = project.get('tech_stack', [])
             technologies = project.get('technologies', '')
+            if tech_stack and isinstance(tech_stack, list):
+                technologies = ', '.join(tech_stack)
+            elif not technologies:
+                technologies = ''
+            
             impact = project.get('impact', '')
-            date = project.get('date', 'Recent')
+            # Handle 'year' or 'date' fields
+            date = project.get('date') or project.get('year', 'Recent')
             
             formatted_project = {
                 'PROJECT_DATE': self.escape_latex_special_chars(str(date)),
@@ -390,20 +413,66 @@ class LaTeXFormatterAgent:
         # Extract job title
         job_title = resume_data.get('job_title', 'Professional Title')
         
-        # Default personal information (can be customized)
+        # Extract contact information from root-level fields
+        email = resume_data.get('email', 'your.email@example.com')
+        phone = resume_data.get('phone', '+1 (555) 123-4567')
+        website = resume_data.get('website', '')
+        linkedin = resume_data.get('linkedin', '')
+        github = resume_data.get('github', '')
+        
+        # Extract address (handle both list and string formats)
+        address = resume_data.get('address', [])
+        if isinstance(address, list) and len(address) > 0:
+            address_line1 = address[0] if len(address) > 0 else '123 Main Street'
+            address_line2 = address[1] if len(address) > 1 else ''
+            city_state_zip = address[2] if len(address) > 2 else ''
+        elif isinstance(address, str):
+            address_line1 = address
+            address_line2 = ''
+            city_state_zip = ''
+        else:
+            address_line1 = '123 Main Street'
+            address_line2 = 'Apt 4B'
+            city_state_zip = 'City, State 12345'
+        
+        # Extract LinkedIn username from URL if full URL provided
+        linkedin_username = linkedin
+        if linkedin and ('linkedin.com' in linkedin):
+            # Extract username from URL like https://linkedin.com/in/username
+            parts = linkedin.rstrip('/').split('/')
+            if 'in' in parts:
+                idx = parts.index('in')
+                if idx + 1 < len(parts):
+                    linkedin_username = parts[idx + 1]
+        
+        # Extract GitHub username from URL if full URL provided
+        github_username = github
+        if github and ('github.com' in github):
+            # Extract username from URL like https://github.com/username
+            parts = github.rstrip('/').split('/')
+            if len(parts) > 0:
+                github_username = parts[-1]
+        
+        # Extract summary for quote (first 120 chars or use dedicated summary field)
+        summary = resume_data.get('summary', '')
+        objective_quote = summary[:120] + '...' if len(summary) > 120 else summary
+        if not objective_quote:
+            objective_quote = 'Dedicated professional seeking to contribute expertise and drive innovation.'
+        
+        # Build personal information dict with actual data
         personal_info = {
             'FIRST_NAME': self.escape_latex_special_chars(first_name),
             'LAST_NAME': self.escape_latex_special_chars(last_name),
             'JOB_TITLE': self.escape_latex_special_chars(job_title),
-            'ADDRESS_LINE1': '123 Main Street',
-            'ADDRESS_LINE2': 'Apt 4B',
-            'CITY_STATE_ZIP': 'City, State 12345',
-            'PHONE_NUMBER': '+1 (555) 123-4567',
-            'EMAIL_ADDRESS': 'your.email@example.com',
-            'WEBSITE': 'www.yourwebsite.com',
-            'LINKEDIN_USERNAME': 'yourlinkedin',
-            'GITHUB_USERNAME': 'yourgithub',
-            'OBJECTIVE_QUOTE': 'Dedicated professional seeking to contribute expertise and drive innovation.'
+            'ADDRESS_LINE1': self.escape_latex_special_chars(address_line1),
+            'ADDRESS_LINE2': self.escape_latex_special_chars(address_line2),
+            'CITY_STATE_ZIP': self.escape_latex_special_chars(city_state_zip),
+            'PHONE_NUMBER': self.escape_latex_special_chars(phone),
+            'EMAIL_ADDRESS': self.escape_latex_special_chars(email),
+            'WEBSITE': self.escape_latex_special_chars(website) if website else 'www.yourwebsite.com',
+            'LINKEDIN_USERNAME': self.escape_latex_special_chars(linkedin_username) if linkedin_username else 'yourlinkedin',
+            'GITHUB_USERNAME': self.escape_latex_special_chars(github_username) if github_username else 'yourgithub',
+            'OBJECTIVE_QUOTE': self.escape_latex_special_chars(objective_quote)
         }
         
         return personal_info
@@ -443,24 +512,44 @@ class LaTeXFormatterAgent:
             LaTeX content with populated placeholders
         """
         try:
-            # Extract data sections
+            # Extract data sections (try aligned_sections first, then root-level)
             aligned_sections = resume_data.get('aligned_sections', {})
             
             # Get personal information
             personal_info = self.extract_personal_info(resume_data)
             
-            # Get professional summary
-            summary = aligned_sections.get('summary', 'Experienced professional with strong technical skills and proven track record of success.')
+            # Get professional summary (prefer aligned, fallback to root-level summary)
+            summary = (aligned_sections.get('summary') or 
+                      resume_data.get('summary') or 
+                      'Experienced professional with strong technical skills and proven track record of success.')
             
-            # Format different sections
-            skills_categories = self.format_skills_by_category(aligned_sections.get('skills', {}))
-            experience_entries = self.format_experience_entries(aligned_sections.get('experience', []))
-            education_entries = self.format_education_entries(aligned_sections.get('education', []))
+            # Format skills - try aligned_sections first, then root-level skills
+            skills_data = aligned_sections.get('skills', {})
+            if not skills_data:
+                # Fallback: use root-level skills list
+                root_skills = resume_data.get('skills', [])
+                if root_skills:
+                    skills_data = {'aligned_skills': root_skills}
             
-            # Handle projects (optional)
-            has_projects, project_entries = self.format_projects_entries(
-                resume_data.get('relevant_projects', []) or aligned_sections.get('projects', [])
-            )
+            skills_categories = self.format_skills_by_category(skills_data)
+            
+            # Format experience - try aligned_sections first, then root-level
+            experience_data = aligned_sections.get('experience', [])
+            if not experience_data:
+                experience_data = resume_data.get('experience', [])
+            experience_entries = self.format_experience_entries(experience_data)
+            
+            # Format education - try aligned_sections first, then root-level
+            education_data = aligned_sections.get('education', [])
+            if not education_data:
+                education_data = resume_data.get('education', [])
+            education_entries = self.format_education_entries(education_data)
+            
+            # Handle projects (try multiple sources)
+            projects_data = (resume_data.get('relevant_projects') or 
+                           aligned_sections.get('projects') or 
+                           resume_data.get('projects', []))
+            has_projects, project_entries = self.format_projects_entries(projects_data)
             
             # Start with personal information
             populated_content = template_content

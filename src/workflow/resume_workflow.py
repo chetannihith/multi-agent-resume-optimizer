@@ -13,17 +13,13 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-# Ensure the bundled ADK reference implementation is importable
-_ADK_ROOT = Path(__file__).resolve().parents[2] / "ADK-Reference-Notes"
-if str(_ADK_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ADK_ROOT))
-
+# Import from installed google-adk package
 from google.genai import types
-from adk.agents.base_agent import BaseAgent
-from adk.agents.sequential_agent import SequentialAgent
-from adk.apps.app import App
-from adk.events.event import Event
-from adk.runners import InMemoryRunner
+from google.adk.agents.base_agent import BaseAgent
+from google.adk.agents.sequential_agent import SequentialAgent
+from google.adk.apps.app import App
+from google.adk.events.event import Event
+from google.adk.runners import InMemoryRunner
 
 from agents.content_alignment_agent import ContentAlignmentAgent
 from agents.ats_optimizer_agent import ATSOptimizerAgent
@@ -332,36 +328,53 @@ class ResumeWorkflow:
     def _handle_alignment(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         job_data = shared.get("job_data") or {}
         profile_data = shared.get("profile_data") or {}
-        return self.alignment_agent.align_content(job_data, profile_data)
+        
+        aligned = self.alignment_agent.align_content(job_data, profile_data)
+        
+        # Double-check critical fields are preserved
+        for key in ["name", "email", "phone", "skills", "experience", "education", "projects"]:
+            if not aligned.get(key) and profile_data.get(key):
+                aligned[key] = profile_data[key]
+        
+        self.logger.info(f"Content alignment completed. Has name: {bool(aligned.get('name'))}, skills count: {len(aligned.get('skills', []))}")
+        return aligned
 
     def _handle_ats(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         aligned = shared.get("aligned_data") or {}
         profile_data = shared.get("profile_data") or {}
         
-        # Ensure aligned data has profile information
-        if not aligned.get("name") and profile_data.get("name"):
-            for key in ["name", "email", "phone", "summary"]:
-                if key in profile_data and not aligned.get(key):
-                    aligned[key] = profile_data[key]
+        # Ensure aligned data has complete profile information before optimization
+        for key in ["name", "email", "phone", "summary", "skills", "experience", "education", "projects"]:
+            if not aligned.get(key) and profile_data.get(key):
+                aligned[key] = profile_data[key]
         
         optimized = self.ats_agent.optimize_resume(aligned)
-        self.logger.info(f"ATS optimization completed. Has name: {bool(optimized.get('name'))}")
+        
+        # Verify critical fields after optimization
+        for key in ["name", "email", "phone"]:
+            if not optimized.get(key) and aligned.get(key):
+                optimized[key] = aligned[key]
+        
+        self.logger.info(f"ATS optimization completed. Has name: {bool(optimized.get('name'))}, ATS score: {optimized.get('ats_analysis', {}).get('ats_score', 'N/A')}")
         return optimized
 
     def _handle_latex(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         optimized = shared.get("optimized_data") or {}
         profile_data = shared.get("profile_data") or {}
+        aligned_data = shared.get("aligned_data") or {}
         
-        # Fallback to profile data if optimized is empty
-        if not optimized.get("name") and profile_data.get("name"):
-            self.logger.warning("Optimized data missing name, using profile data")
-            optimized = {**profile_data, **optimized}  # Merge with optimized taking precedence
+        # Build complete resume data for LaTeX generation
+        # Priority: optimized > aligned > profile (newest wins)
+        latex_input = {**profile_data, **aligned_data, **optimized}
+        
+        # Log what we're sending to LaTeX
+        self.logger.info(f"Generating LaTeX. Has name: {bool(latex_input.get('name'))}, email: {bool(latex_input.get('email'))}, skills count: {len(latex_input.get('skills', []))}, experience count: {len(latex_input.get('experience', []))}")
         
         context_id = shared.get("context_id", "resume")
         output_name = f"{context_id}.tex"
         
-        self.logger.info(f"Generating LaTeX. Has name: {bool(optimized.get('name'))}, skills count: {len(optimized.get('skills', []))}")
-        latex_path = self.latex_agent.generate_latex_resume(optimized, output_filename=output_name)
+        # Use the merged latex_input instead of just optimized
+        latex_path = self.latex_agent.generate_latex_resume(latex_input, output_filename=output_name)
         shared["latex_file_path"] = latex_path
         return latex_path
 
